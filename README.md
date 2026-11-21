@@ -2,7 +2,7 @@
 
 BrickCAD je webová aplikácia na návrh vlastných 3D tlačiteľných dielcov s rozstupom **8 mm**. V prehliadači môžeš nakresliť pôdorys, pridať spoje, skontrolovať vnútro v reze a stiahnuť **STL, STEP alebo 3MF**. CAD výpočet aj export prebiehajú lokálne.
 
-[Rýchly štart](#start) · [Práca s editorom](#editor) · [Príklady dielcov](#examples) · [Tlač a export](#printing) · [Vývoj a testy](#development)
+[Rýchly štart](#start) · [Práca s editorom](#editor) · [Príklady dielcov](#examples) · [Tlač a export](#printing) · [Vývoj a testy](#development) · [Cloudflare Pages](#cloudflare)
 
 ![BrickCAD vo svetlom režime s referenčnou kockou 4 × 2, rozmermi a editorom pôdorysu](docs/images/brickcad-light.webp)
 
@@ -177,6 +177,29 @@ flowchart LR
 | [`src/export.js`](src/export.js) | Balenie siete 3MF |
 
 </details>
+
+<a name="cloudflare"></a>
+
+## Cloudflare Pages
+
+V Cloudflare otvor **Workers & Pages** a vytvor projekt **Pages** pripojený k repozitáru `bucala/Brick-maker`. Takto sa ďalšie zmeny na `main` nasadia automaticky.
+
+| Nastavenie Pages | Hodnota |
+| --- | --- |
+| Projekt | `brick-maker` |
+| Produkčná vetva | `main` |
+| Koreň projektu | Koreň repozitára |
+| Príkaz buildu | `npm run build` |
+| Výstupný adresár | `dist` |
+| Build premenná `NODE_VERSION` | `24.22.3` |
+
+Aplikácia potrebuje iba statický hosting. Súbor [`wrangler.jsonc`](wrangler.jsonc) obsahuje konfiguráciu Pages. Lokálne ju overíš pomocou Node.js 22.12+ a Wrangleru.
+
+```sh
+npm ci
+npm run build
+npx --yes wrangler@4.166.0 pages dev
+```
 
 ## Licencia
 
