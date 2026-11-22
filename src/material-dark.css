@@ -1,0 +1,118 @@
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    font-family: 'Roboto Variable', Roboto, system-ui, sans-serif;
+    /* Material dark surfaces become lighter as their elevation increases. */
+    --bg: #121212;
+    --command: #1e1e1e;
+    --panel: #242424;
+    --overlay: #282828;
+    --flyout: #303030;
+    --viewport: #151515;
+    --line: #ffffff1f;
+    --field: #ffffff0d;
+    --text: #ffffffde;
+    --muted: #ffffff99;
+    --quiet: #ffffff99;
+    --accent: #bb86fc;
+    --accent-ink: #120421;
+    --accent-hover: #c89ffe;
+    --hover: #ffffff14;
+    --pressed: #ffffff1f;
+    --subtle: #ffffff0a;
+    --control-edge: #ffffff3d;
+    --control-strong: #ffffff6b;
+    --selected: #bb86fc26;
+    --grid-field: #1a1a1a;
+    --cell: #282828;
+    --cell-line: #3b3b3b;
+    --cell-hover: #43354e;
+    --cell-on: var(--accent);
+    --cell-on-edge: var(--accent-hover);
+    --cell-stud: #45236a;
+    --axis-x: #f299a5;
+    --axis-y: #66e0d3;
+    --axis-z: #a2bbff;
+    --good: #03dac6;
+    --error: #f2a0af;
+    --error-edge: #cf6679;
+    --shadow: #00000066;
+    --asset-theme: invert(1);
+  }
+
+  #app { background: var(--bg); }
+  .topbar { background: var(--command); border-bottom: 1px solid var(--line); }
+  .brand { font-size: 14px; font-weight: 500; }
+  .stage-name h1, .sidebar-header h2 { font-weight: 500; letter-spacing: .0125em; }
+  .stage, .sidebar, .panel, .measurements { border-radius: 4px; }
+  .sidebar, .panel, .measurements { box-shadow: 0 2px 4px var(--shadow); }
+  .export-menu, .angle-menu { border-radius: 4px; backdrop-filter: none; }
+  .primary {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    box-shadow: 0 2px 4px var(--shadow);
+  }
+  .nav-item[aria-current] { background: var(--selected); color: var(--accent); }
+  .panel[open] > .panel-title h3 svg, .field:focus-within > span { color: var(--accent); }
+}
+
+@media (prefers-color-scheme: dark) and (forced-colors: none) {
+  .segments {
+    background: transparent;
+    border-radius: 0;
+    box-shadow: inset 0 -1px var(--line);
+  }
+  .segments button { border: 0; border-radius: 4px 4px 0 0; color: var(--muted); }
+  .segments button[aria-pressed="true"] { background: var(--subtle); color: var(--accent); }
+  .segments button[aria-pressed="true"]::after {
+    inset-inline: 0;
+    width: auto;
+    height: 2px;
+    mask: none;
+  }
+  .icon-button[aria-pressed="true"] { background: var(--selected); border-color: transparent; }
+  .segments button[aria-pressed="true"]:hover, .icon-button[aria-pressed="true"]:hover { background: var(--selected); }
+  .segments button:active, .icon-button:active:not(:disabled) { background: var(--pressed); }
+
+  select, input[type="number"] {
+    border-inline: 0;
+    border-top: 0;
+    border-radius: 4px 4px 0 0;
+  }
+
+  input[type="range"]::-webkit-slider-runnable-track {
+    height: 2px;
+    background: linear-gradient(to right, var(--accent) var(--fill, 50%), #bb86fc61 var(--fill, 50%));
+  }
+  input[type="range"]::-moz-range-track { height: 2px; background: #bb86fc61; }
+  input[type="range"]::-moz-range-progress { height: 2px; }
+  input[type="range"]::-webkit-slider-thumb {
+    width: 12px;
+    height: 12px;
+    margin-top: -5px;
+    background: var(--accent);
+    filter: none;
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    background: var(--accent);
+    filter: none;
+  }
+  input[type="range"]:hover::-webkit-slider-thumb { box-shadow: 0 0 0 6px var(--selected); }
+  input[type="range"]:hover::-moz-range-thumb { box-shadow: 0 0 0 6px var(--selected); }
+
+  .switch { padding-inline-start: 2px; }
+  .switch-track { flex-basis: 36px; height: 14px; padding: 0; border: 0; background: #ffffff52; }
+  .switch-track::before {
+    width: 20px;
+    height: 20px;
+    margin-inline-start: -2px;
+    background: #bdbdbd;
+    box-shadow: 0 1px 3px var(--shadow);
+  }
+  .switch input:checked + .switch-track { background: #bb86fc61; }
+  .switch input:checked + .switch-track::before { margin-inline: auto -2px; background: var(--accent); }
+}

@@ -51,6 +51,11 @@ test('tube, pin and automatic Technic positions follow the footprint', () => {
 
 const samples = [
   ['reference brick', {}, [31.8, 15.8, 11.4]],
+  ['technical brick with default round passages', { category: 'technical', technic: undefined }, [31.8, 15.8, 11.4]],
+  ['large brick with hollow FDM studs and connector adjustments', {
+    category: 'children', mode: 'fdm', nozzle: 0.6, clutch: 0.15, bridging: true,
+    top: 'hollow', technic: 'pin', snot: 'stud', side: 'west',
+  }, [63.6, 31.6, 22.8]],
   ['tile plate', { top: 'tile', plates: 1, cells: rectangle(1, 4) }, [7.8, 31.8, 3.2]],
   ['hollow FDM with tube haunches and pin passages', { mode: 'fdm', top: 'hollow', bridging: true, technic: 'pin', clutch: 0.15 }, [31.8, 15.8, 11.4]],
   ['cross axle passages with SNOT recesses', { technic: 'axle', snot: 'recess' }, [31.8, 15.8, 11.4]],

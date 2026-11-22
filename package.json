@@ -18,6 +18,7 @@
   "dependencies": {
     "@fluentui/svg-icons": "^1.1.347",
     "@fontsource-variable/inter": "^5.3.0",
+    "@fontsource-variable/roboto": "^5.3.0",
     "@fontsource/ibm-plex-mono": "^5.3.0",
     "fflate": "^0.8.3",
     "replicad": "^1.2.1",

@@ -1,6 +1,6 @@
 # BrickCAD
 
-BrickCAD je webová aplikácia na návrh vlastných 3D tlačiteľných dielcov s rozstupom **8 mm**. V prehliadači môžeš nakresliť pôdorys, pridať spoje, skontrolovať vnútro v reze a stiahnuť **STL, STEP alebo 3MF**. CAD výpočet aj export prebiehajú lokálne.
+BrickCAD je webová aplikácia na návrh vlastných 3D tlačiteľných dielcov s rozstupom **8 alebo 16 mm**. V prehliadači môžeš nakresliť pôdorys, pridať spoje, skontrolovať vnútro v reze a stiahnuť **STL, STEP alebo 3MF**. CAD výpočet aj export prebiehajú lokálne.
 
 [Rýchly štart](#start) · [Práca s editorom](#editor) · [Príklady dielcov](#examples) · [Tlač a export](#printing) · [Vývoj a testy](#development) · [Cloudflare Workers](#cloudflare)
 
@@ -34,12 +34,20 @@ V prehliadači otvor adresu vypísanú v termináli. Predvolený diel má pôdor
 
 ## Práca s editorom
 
+V hornej časti konfigurátora vyber **Typ dielca**. Pri prepínaní kategórií sa zachová pôdorys aj počet platničiek.
+
+| Kategória | Rozstup | Krok výšky | Spoje |
+| --- | ---: | ---: | --- |
+| **Klasická** | 8 mm | 3,2 mm | Horné a spodné spoje. Priechodné a bočné spoje sa dajú zapnúť v nastaveniach. |
+| **Technická** | 8 mm | 3,2 mm | Predvolené okrúhle priechodné otvory pre kolíky. V nastaveniach sa dá vybrať aj krížový otvor pre osku. |
+| **Detská** | 16 mm | 6,4 mm | Zväčšené horné a spodné spoje. Tolerancie tlače sa zadávajú v mm výsledného dielca. |
+
 | Ovládanie | Použitie |
 | --- | --- |
 | **Obdĺžnik** | Zadaj šírku X a hĺbku Y od 1 do 16 modulov. |
 | **Vlastný tvar** | Klikaním alebo ťahaním kresli v mriežke 16 × 16. Môžeš použiť *Vyplniť*, *Vymazať* a zrkadlenie podľa X alebo Y. |
 | **Upraviť jednotlivé study** | Klikaním na obsadené bunky zapínaj alebo vypínaj horné study. V mriežke sa dá pohybovať aj šípkami a bunka sa mení medzerníkom. |
-| **Výška dielca** | Nastav 1 až 24 platničiek po 3,2 mm. Tlačidlá − a + menia výšku o jednu platničku. |
+| **Výška dielca** | Nastav 1 až 24 platničiek. Tlačidlá − a + menia výšku o jednu platničku. |
 | **Rýchly / Detailný** | Rýchly náhľad sa počíta bez drobných skosení a rebier. Detailný náhľad zobrazí geometriu použitú pri exporte. |
 | **3D náhľad** | Ťahaj ľavým tlačidlom pre otočenie, pravým pre posun a kolieskom priblíž. Kompas ponúka pevné pohľady *Zhora*, *Zdola*, *Spredu* a *Zboku*. |
 | **Rez dielcom** | Vyber os X, Y alebo Z a posuvníkom premiestni rovinu rezu. Rez slúži na kontrolu modelu v náhľade. |
@@ -49,11 +57,11 @@ V prehliadači otvor adresu vypísanú v termináli. Predvolený diel má pôdor
 
 - **Horný povrch** môže mať plné study, duté study alebo hladký povrch.
 - **Spodné spoje** vznikajú automaticky. Rúrka patrí do priesečníka obsadeného bloku 2 × 2. Medzi susednými bunkami v úseku širokom jeden modul môže vzniknúť kolík.
-- **Technic** podporuje okrúhly otvor s osadením pre pin a krížový otvor pre osku. Smer môže zvoliť aplikácia alebo ho nastavíš podľa osi X či Y. Otvory vznikajú medzi protiľahlými úsekmi stien širokými najmenej dva moduly.
-- **SNOT** pridá bočné study alebo priehlbiny na vybranej strane.
+- **Priechodné spoje** podporujú okrúhly otvor s osadením pre kolík a krížový otvor pre osku. Smer môže zvoliť aplikácia alebo ho nastavíš podľa osi X či Y. Otvory vznikajú medzi protiľahlými úsekmi stien širokými najmenej dva moduly. Editor zobrazuje počet otvorov a použitú os.
+- **Bočné spoje** pridajú study alebo priehlbiny na vybranej strane.
 - **Šikmina** môže mať 33°, 45° alebo opačnú orientáciu pri 45°. Study, ktoré by zasahovali cez zlom medzi plochami, sa vynechajú.
 
-Technic a SNOT vyžadujú rovnú hornú plochu a výšku aspoň troch platničiek.
+Priechodné a bočné spoje vyžadujú formát s rozstupom 8 mm, rovnú hornú plochu a výšku aspoň troch platničiek.
 
 </details>
 
@@ -87,10 +95,10 @@ Technic a SNOT vyžadujú rovnú hornú plochu a výšku aspoň troch platničie
 </details>
 
 <details>
-<summary><strong>Diel 4 × 2 s otvormi Technic</strong></summary>
+<summary><strong>Technický diel 4 × 2 s priechodnými otvormi</strong></summary>
 
-1. Zadaj obdĺžnik 4 × 2, výšku tri platničky a rovnú hornú plochu.
-2. V **Prepojeniach** vyber *Okrúhly otvor pre pin* a os **Y**.
+1. Vyber kategóriu **Technická** a zadaj obdĺžnik 4 × 2, výšku tri platničky a rovnú hornú plochu.
+2. V **Prepojeniach** vyber *Okrúhly otvor pre kolík* a os **Y**.
 3. V pohľade spredu skontroluj tri otvory s osadením. Rezom v osi Y si zobraz priebežné kanály.
 
 </details>
@@ -113,6 +121,8 @@ Technic a SNOT vyžadujú rovnú hornú plochu a výšku aspoň troch platničie
 <details>
 <summary><strong>Nominálne rozmery a kontrola pred tlačou</strong></summary>
 
+Tabuľka uvádza hodnoty pre kategórie **Klasická** a **Technická**.
+
 | Prvok | Nominálna hodnota |
 | --- | ---: |
 | Modulárny rozstup | 8,0 mm |
@@ -123,8 +133,8 @@ Technic a SNOT vyžadujú rovnú hornú plochu a výšku aspoň troch platničie
 | Vnútorný otvor dutého studu | Ø 3,2 mm |
 | Spodná rúrka | Ø ~6,51 mm zvonka, Ø 4,8 mm zvnútra |
 | Spodný kolík | Ø 3,2 mm |
-| Okrúhly otvor Technic | Ø 4,8 mm v osi 5,8 mm od spodku |
-| Osadenie otvoru Technic | Ø 6,1 mm, hĺbka 0,8 mm na každej strane |
+| Okrúhly priechodný otvor | Ø 4,8 mm v osi 5,8 mm od spodku |
+| Osadenie priechodného otvoru | Ø 6,1 mm, hĺbka 0,8 mm na každej strane |
 
 Pred tlačou celej série skontroluj v sliceri mierku, orientáciu a podpery. Na krátkej skúšobnej tlači over vôľu spojov s dielmi, ktoré chceš použiť. Výsledok ovplyvňuje tlačiareň, materiál aj kalibrácia. Oddelené časti pôdorysu zostanú v exporte geometricky oddelené.
 

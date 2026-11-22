@@ -5,6 +5,7 @@ import {
 } from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { PITCH } from './footprint.js';
 
 export function createViewport(host, onCameraChange) {
   const scene = new Scene();
@@ -44,7 +45,7 @@ export function createViewport(host, onCameraChange) {
     transparent: true,
     depthWrite: false,
     side: DoubleSide,
-    uniforms: { gridTint: { value: new Vector3() }, opacity: { value: 0.33 } },
+    uniforms: { gridTint: { value: new Vector3() }, opacity: { value: 0.33 }, pitch: { value: PITCH } },
     vertexShader: `
       varying vec3 world;
       void main() {
@@ -54,6 +55,7 @@ export function createViewport(host, onCameraChange) {
     fragmentShader: `
       uniform vec3 gridTint;
       uniform float opacity;
+      uniform float pitch;
       varying vec3 world;
       float lines(vec2 p) {
         vec2 width = max(fwidth(p), vec2(0.0001));
@@ -61,8 +63,8 @@ export function createViewport(host, onCameraChange) {
         return 1.0 - smoothstep(0.0, 1.1, min(line.x, line.y));
       }
       void main() {
-        float fade = 1.0 - smoothstep(22.0, 160.0, distance(cameraPosition, world));
-        float grid = max(lines(world.xy / 8.0), 0.55 * lines(world.xy / 2.0));
+        float fade = 1.0 - smoothstep(2.75, 20.0, distance(cameraPosition, world) / pitch);
+        float grid = max(lines(world.xy / pitch), 0.55 * lines(world.xy / (pitch / 4.0)));
         gl_FragColor = vec4(gridTint, grid * fade * opacity * step(world.z, cameraPosition.z));
       }`,
   }));
@@ -96,8 +98,9 @@ export function createViewport(host, onCameraChange) {
     const dark = scheme.matches;
     const background = getComputedStyle(host).getPropertyValue('--viewport').trim();
     scene.background.setStyle(background);
-    grid.material.uniforms.gridTint.value.set(0.35, 0.49, 0.67);
-    grid.material.uniforms.opacity.value = dark ? 0.46 : 0.33;
+    const gridTint = dark ? [0.53, 0.46, 0.62] : [0.35, 0.49, 0.67];
+    grid.material.uniforms.gridTint.value.set(...gridTint);
+    grid.material.uniforms.opacity.value = dark ? 0.32 : 0.33;
     floor.material.opacity = dark ? 0.38 : 0.23;
     needsRender = true;
   }
@@ -156,7 +159,7 @@ export function createViewport(host, onCameraChange) {
 
   return {
     fit,
-    setModel({ positions, directions, indices, limits }) {
+    setModel({ positions, directions, indices, limits }, pitch = PITCH) {
       const previous = formatSize(box.getSize(new Vector3()));
       const geometry = new BufferGeometry();
       geometry.setAttribute('position', new BufferAttribute(positions, 3));
@@ -165,7 +168,10 @@ export function createViewport(host, onCameraChange) {
       model.geometry.dispose();
       model.geometry = geometry;
       box = new Box3(new Vector3(...limits[0]), new Vector3(...limits[1]));
-      const current = formatSize(box.getSize(new Vector3()));
+      const size = box.getSize(new Vector3());
+      grid.material.uniforms.pitch.value = pitch;
+      controls.maxDistance = Math.max(680, size.length() * 4);
+      const current = formatSize(size);
       const extent = Math.max(24, current * 0.87);
       Object.assign(keyLight.shadow.camera, { left: -extent, right: extent, bottom: -extent, top: extent, far: 450 });
       keyLight.shadow.camera.updateProjectionMatrix();

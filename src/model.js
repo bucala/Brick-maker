@@ -1,5 +1,6 @@
 import { draw, drawCircle, makeBox, makeCompound, makeCylinder } from 'replicad';
 import { PITCH, bounds, connections, key, outline, inset, technicRuns } from './footprint.js';
+import { PLATE_HEIGHT, allowsExtraConnections, getCategory } from './settings.js';
 
 const CLEARANCE = 0.1;
 const WALL = 1.2;
@@ -118,16 +119,22 @@ function addTechnic(shape, cells, width, depth, kind, requestedAxis, diameter) {
 }
 
 export function makeBrick(params, detailed = true) {
-  const { cells, disabled, plates, top, mode, nozzle, clutch, bridging, technic, axis, snot, side, slope } = params;
+  const { scale, defaultPassage } = getCategory(params.category);
+  const {
+    cells, disabled, plates, top, mode, nozzle, clutch: clutchMm, bridging,
+    technic = defaultPassage, axis, snot, side, slope,
+  } = params;
   if (!cells.length) throw new Error('Do pôdorysu pridaj aspoň jednu bunku.');
   const { x: minX, y: minY, width, depth } = bounds(cells);
   const local = cells.map(([x, y]) => [x - minX, y - minY]);
   const occupied = new Set(local.map(cell => key(...cell)));
   const loops = outline(local).sort((a, b) => Math.abs(b.area) - Math.abs(a.area));
-  const height = plates * 3.2;
+  const height = plates * PLATE_HEIGHT;
   const ceiling = height - ROOF + JOIN;
   const fdm = mode === 'fdm';
-  const compensation = fdm ? { 0.2: 0.15, 0.4: 0.2, 0.6: 0.25 }[nozzle] : 0;
+  // Apply printer adjustments in millimeters of the finished part.
+  const clutch = clutchMm / scale;
+  const compensation = fdm ? { 0.2: 0.15, 0.4: 0.2, 0.6: 0.25 }[nozzle] / scale : 0;
   const tubeInside = (4.8 + compensation - clutch) / 2;
   const radius = STUD_RADIUS + clutch / 2;
   const px = x => (x - width / 2) * PITCH;
@@ -136,7 +143,7 @@ export function makeBrick(params, detailed = true) {
   const outer = profile(loops, CLEARANCE, width, depth);
   const inner = profile(loops, CLEARANCE + WALL, width, depth);
   let shell = prism(outer, 0, height);
-  if (detailed && fdm) shell = shell.chamfer(0.3, edge => edge.inPlane('XY', 0));
+  if (detailed && fdm) shell = shell.chamfer(0.3 / scale, edge => edge.inPlane('XY', 0));
   let topAt = () => height;
   let slopeCutter;
   let cavity = prism(inner, -JOIN, height - ROOF + JOIN);
@@ -155,7 +162,7 @@ export function makeBrick(params, detailed = true) {
   for (const { x, y, ribs } of tubes) {
     supports.push(makeCylinder(tubeRadius, ceiling, [px(x), py(y), 0]));
     if (bridging && fdm && detailed && !slopeCutter) {
-      const rise = Math.min(0.6, Math.max(0.35, height - ROOF - 1.8));
+      const rise = Math.min(0.6 / scale, Math.max(0.35 / scale, height - ROOF - STUD_HEIGHT));
       const cone = taper(px(x), py(y), ceiling - rise, tubeRadius - JOIN, ceiling, tubeRadius + rise - JOIN);
       // A haunch may merge with the walls but stays inside the outer envelope.
       supports[supports.length - 1] = supports.at(-1).fuse(cone.intersect(prism(outer, -JOIN, height + JOIN)));
@@ -173,11 +180,12 @@ export function makeBrick(params, detailed = true) {
 
   if (slopeCutter) shell = shell.cut(slopeCutter.vertical);
 
-  if (technic !== 'none' && plates >= 3 && slope === 'flat') {
+  const extraConnections = allowsExtraConnections(params);
+  if (extraConnections && technic !== 'none') {
     shell = addTechnic(shell, local, width, depth, technic, axis, 4.8 + compensation - clutch);
   }
 
-  if (snot !== 'none' && plates >= 3 && slope === 'flat') {
+  if (extraConnections && snot !== 'none') {
     const [dx, dy] = { west: [-1, 0], east: [1, 0], south: [0, -1], north: [0, 1] }[side];
     const direction = [dx, dy, 0];
     const rotationAxis = [-dy, dx, 0];
@@ -216,5 +224,5 @@ export function makeBrick(params, detailed = true) {
     }
     shell = apply(apply(shell, 'fuse', studs), 'cut', bores);
   }
-  return shell;
+  return scale === 1 ? shell : shell.scale(scale);
 }

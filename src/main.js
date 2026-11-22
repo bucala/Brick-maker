@@ -1,17 +1,26 @@
 import '@fontsource-variable/inter';
+import '@fontsource-variable/roboto';
 import '@fontsource/ibm-plex-mono/400.css';
 import './style.css';
+import './material-dark.css';
+import commandDivider from './assets/fluent/command-divider.svg?no-inline';
 import { icons } from './icons.js';
-import { bounds, GRID, key, rectangle, technicRuns } from './footprint.js';
-import { defaults } from './settings.js';
+import { bounds, GRID, key, PITCH, rectangle, technicRuns } from './footprint.js';
+import { allowsExtraConnections, categories, defaults, getCategory, PLATE_HEIGHT } from './settings.js';
 import { createViewport } from './viewport.js';
 
-const section = (icon, title) => `<summary class="panel-title"><h2>${icons[icon]}<span>${title}</span></h2>${icons.chevron}</summary>`;
+const panels = {
+  footprint: { icon: 'grid', title: 'Pôdorys' },
+  height: { icon: 'layers', title: 'Výška dielca' },
+  connections: { icon: 'link', title: 'Prepojenia' },
+  print: { icon: 'printer', title: 'Príprava na tlač' },
+};
+const section = ({ icon, title }) => `<summary class="panel-title"><h3>${icons[icon]}<span>${title}</span></h3>${icons.chevron}</summary>`;
 const iconButton = (id, icon, label) => `<button type="button" id="${id}" class="icon-button" title="${label}" aria-label="${label}">${icons[icon]}</button>`;
 const toggle = (name, label, pressed = false) => `<button type="button" data-value="${name}" aria-pressed="${pressed}">${label}</button>`;
 const option = (value, text) => `<option value="${value}">${text}</option>`;
 const field = (id, label, options) => `<label class="field" for="${id}"><span>${label}</span><select id="${id}">${options.map(([value, text]) => option(value, text)).join('')}</select></label>`;
-const dimension = (id, label, value) => `<label class="field" for="${id}"><span>${label}</span><span class="input-unit"><input id="${id}" type="number" min="1" max="${GRID}" value="${value}"><small>mod.</small></span></label>`;
+const dimension = (id, label, value) => `<label class="field" for="${id}"><span>${label} <small>(mod.)</small></span><input id="${id}" type="number" min="1" max="${GRID}" value="${value}"></label>`;
 
 document.querySelector('#app').innerHTML = `
   <header class="topbar">
@@ -19,7 +28,20 @@ document.querySelector('#app').innerHTML = `
       <span class="brand-icon">${icons.boxes}</span>
       <span class="brand">BrickCAD</span>
     </div>
-    <div class="top-actions">
+  </header>
+  <main class="workspace">
+    <div class="commandbar">
+      <div class="stage-name">${icons.orbit}<h1 id="stage-title">3D náhľad</h1></div>
+      <div class="stage-actions" role="group" aria-label="Ovládanie náhľadu">
+        <div class="segments view-modes" id="quality" role="group" aria-label="Kvalita náhľadu">
+          ${toggle('quick', icons.zap + '<span>Rýchly</span>')}
+          ${toggle('detail', icons.box + '<span>Detailný</span>', true)}
+        </div>
+        <img class="toolbar-divider" src="${commandDivider}" alt="" width="4" height="40">
+        ${iconButton('section', 'slice', 'Rez dielcom')}
+        ${iconButton('measure', 'ruler', 'Zobraziť rozmery')}
+        ${iconButton('fit', 'fit', 'Prispôsobiť pohľad')}
+      </div>
       <div class="export-wrap">
         <button type="button" id="export" class="primary" aria-expanded="false" aria-controls="formats" disabled>${icons.download}<span>Exportovať</span>${icons.chevron}</button>
         <div class="export-menu" id="formats" hidden>
@@ -29,22 +51,7 @@ document.querySelector('#app').innerHTML = `
         </div>
       </div>
     </div>
-  </header>
-  <main class="workspace">
-    <section class="stage" aria-label="3D náhľad">
-      <div class="stage-toolbar">
-        <div class="stage-name">${icons.orbit}<h1>3D náhľad</h1></div>
-        <div class="stage-actions">
-          <div class="segments view-modes" id="quality" aria-label="Kvalita náhľadu">
-            ${toggle('quick', icons.zap + '<span>Rýchly</span>')}
-            ${toggle('detail', icons.box + '<span>Detailný</span>', true)}
-          </div>
-          <div class="toolbar-divider"></div>
-          ${iconButton('section', 'slice', 'Rez dielcom')}
-          ${iconButton('measure', 'ruler', 'Zobraziť rozmery')}
-          ${iconButton('fit', 'scan', 'Prispôsobiť pohľad')}
-        </div>
-      </div>
+    <section class="stage" aria-labelledby="stage-title">
       <div class="view">
         <div id="canvas-host"></div>
         <div class="view-badge" id="orientation">PERSPEKTÍVA</div>
@@ -64,24 +71,45 @@ document.querySelector('#app').innerHTML = `
         <div id="stage-message" class="stage-message" role="status">Pripravuje sa CAD jadro…</div>
         <div class="viewport-bottom">
           <div class="measurements" id="measurements">
-            <div class="measure-title">${icons.ruler}<span>ROZMERY DIELCA</span></div>
-            <strong id="size">—</strong><span id="module-size">4 × 2 mod. · 3 platničky</span>
+            <div class="measure-title">${icons.ruler}<span>Rozmery dielca</span></div>
+            <strong id="size">—</strong><span id="module-size"></span>
           </div>
           <div class="gesture">${icons.mouse}<span>Ťahaj pre otočenie · Koliesko pre priblíženie</span></div>
         </div>
       </div>
       <div class="statusbar">
         <span id="status" role="status"><i></i> Výpočet geometrie…</span>
-        <span class="status-right"><span id="stage-mode">Referenčné</span><span>·</span><span>mm</span></span>
+        <span class="status-right"><span id="stage-category"></span><span aria-hidden="true">·</span><span id="stage-mode">Referenčné</span></span>
       </div>
     </section>
 
+    <nav class="navigation" aria-label="Nastavenia dielca">
+      <button type="button" id="navigation-toggle" class="icon-button navigation-toggle" aria-label="Kompaktná navigácia" aria-pressed="false" title="Kompaktná navigácia">${icons.navigation}</button>
+      <ul class="nav-list" id="settings-navigation">
+        ${Object.entries(panels).map(([id, { icon, title }]) => `
+          <li><a class="nav-item" href="#${id}" title="${title}"${id === 'footprint' ? ' aria-current="location"' : ''}>${icons[icon]}<span>${title}</span></a></li>
+        `).join('')}
+      </ul>
+    </nav>
+
     <aside class="sidebar" aria-labelledby="config-title">
       <div class="sidebar-header"><h2 id="config-title">Konfigurátor</h2></div>
-      <details class="panel" open>
-        ${section('grid', 'Pôdorys')}
+      <fieldset class="category-field" aria-describedby="category-note">
+        <legend>Typ dielca</legend>
+        <div id="category-options" class="category-options">
+          ${Object.entries(categories).map(([id, category]) => `
+            <label class="category-choice">
+              <input type="radio" name="brick-category" value="${id}"${id === defaults.category ? ' checked' : ''}>
+              <span>${category.title}</span>
+            </label>
+          `).join('')}
+        </div>
+        <p id="category-note" class="field-note"><strong id="category-pitch"></strong> <span id="category-description"></span></p>
+      </fieldset>
+      <details class="panel" id="footprint" open>
+        ${section(panels.footprint)}
         <div class="panel-content">
-        <div class="segments full" id="shape-mode" aria-label="Režim pôdorysu">
+        <div class="segments full" id="shape-mode" role="group" aria-label="Režim pôdorysu">
           ${toggle('rectangle', 'Obdĺžnik', true)}${toggle('custom', 'Vlastný tvar')}
         </div>
         <div class="fields two" id="dimensions">${dimension('width', 'Šírka X', 4)}${dimension('depth', 'Hĺbka Y', 2)}</div>
@@ -97,8 +125,8 @@ document.querySelector('#app').innerHTML = `
         <button type="button" id="edit-studs" class="text-button" aria-pressed="false">${icons.grid} <span>Upraviť jednotlivé study</span></button>
         </div>
       </details>
-      <details class="panel" open>
-        ${section('layers', 'Výška dielca')}
+      <details class="panel" id="height" open>
+        ${section(panels.height)}
         <div class="panel-content">
         <div class="height-row">
           <div class="stepper">${iconButton('plate-minus', 'minus', 'Ubrať platničku')}<output id="plate-number" for="plate-range">3</output>${iconButton('plate-plus', 'plus', 'Pridať platničku')}</div>
@@ -107,24 +135,26 @@ document.querySelector('#app').innerHTML = `
         <input type="range" id="plate-range" min="1" max="24" value="3" aria-label="Počet platničiek">
         </div>
       </details>
-      <details class="panel">
-        ${section('link', 'Prepojenia')}
+      <details class="panel" id="connections">
+        ${section(panels.connections)}
         <div class="panel-content">
         <div class="fields">
           ${field('top', 'Horný povrch', [['solid', 'Plné study'], ['hollow', 'Duté study'], ['tile', 'Hladký diel (tile)']])}
           ${field('slope', 'Šikmina', [['flat', 'Bez sklonu'], ['33', '33°'], ['45', '45°'], ['reverse', 'Obrátená 45°']])}
-          ${field('technic', 'Priechodný spoj Technic', [['none', 'Bez otvorov'], ['pin', 'Okrúhly otvor pre pin'], ['axle', 'Krížový otvor pre osku']])}
-          <div id="technic-axis" hidden>${field('axis', 'Smer Technic otvorov', [['auto', 'Automaticky'], ['y', 'Pozdĺž osi Y'], ['x', 'Pozdĺž osi X']])}</div>
-          ${field('snot', 'Bočné spoje SNOT', [['none', 'Bez bočných spojov'], ['stud', 'Bočné study'], ['recess', 'Bočné priehlbiny']])}
-          <div id="snot-side" hidden>${field('side', 'Strana', [['south', 'Predná (−Y)'], ['north', 'Zadná (+Y)'], ['east', 'Pravá (+X)'], ['west', 'Ľavá (−X)']])}</div>
+          <div id="extra-connections" class="fields">
+            ${field('technic', 'Priechodný spoj', [['none', 'Bez otvorov'], ['pin', 'Okrúhly otvor pre kolík'], ['axle', 'Krížový otvor pre osku']])}
+            <div id="technic-axis" hidden>${field('axis', 'Smer otvorov', [['auto', 'Automaticky'], ['y', 'Pozdĺž osi Y'], ['x', 'Pozdĺž osi X']])}</div>
+            ${field('snot', 'Bočné spoje', [['none', 'Bez bočných spojov'], ['stud', 'Bočné study'], ['recess', 'Bočné priehlbiny']])}
+            <div id="snot-side" hidden>${field('side', 'Strana', [['south', 'Predná (−Y)'], ['north', 'Zadná (+Y)'], ['east', 'Pravá (+X)'], ['west', 'Ľavá (−X)']])}</div>
+          </div>
           <p class="field-note" id="connection-note" hidden></p>
         </div>
         </div>
       </details>
-      <details class="panel">
-        ${section('printer', 'Príprava na tlač')}
+      <details class="panel" id="print">
+        ${section(panels.print)}
         <div class="panel-content">
-        <div class="segments full" id="print-mode" aria-label="Kompenzácia tlače">
+        <div class="segments full" id="print-mode" role="group" aria-label="Kompenzácia tlače">
           ${toggle('reference', 'Referenčné', true)}${toggle('fdm', 'Pre 3D tlač')}
         </div>
         <div id="fdm-fields" class="fields" hidden>
@@ -141,10 +171,42 @@ document.querySelector('#app').innerHTML = `
 `;
 
 const $ = id => document.getElementById(id);
+const workspace = document.querySelector('.workspace');
+const navItems = [...$('settings-navigation').querySelectorAll('.nav-item')];
+
+function selectSection(id) {
+  for (const item of navItems) {
+    if (item.hash === `#${id}`) item.setAttribute('aria-current', 'location');
+    else item.removeAttribute('aria-current');
+  }
+}
+
+$('navigation-toggle').addEventListener('click', event => {
+  const compact = workspace.classList.toggle('compact-navigation');
+  event.currentTarget.setAttribute('aria-pressed', String(compact));
+});
+
+$('settings-navigation').addEventListener('click', event => {
+  const item = event.target.closest('.nav-item');
+  if (!item || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  event.preventDefault();
+  const panel = $(item.hash.slice(1));
+  panel.open = true;
+  const summary = panel.querySelector('summary');
+  summary.scrollIntoView({ block: 'start' });
+  summary.focus({ preventScroll: true });
+});
+
+document.querySelector('.sidebar').addEventListener('focusin', event => {
+  const panel = event.target.closest('.panel');
+  if (panel) selectSection(panel.id);
+});
+
 const number = new Intl.NumberFormat('sk-SK', { maximumFractionDigits: 2 });
 const twoDecimals = new Intl.NumberFormat('sk-SK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const params = structuredClone(defaults);
 params.cells = centeredRectangle(4, 2);
+const categoryPassages = Object.fromEntries(Object.entries(categories).map(([id, category]) => [id, category.defaultPassage ?? 'none']));
 let quality = 'detail';
 let shapeMode = 'rectangle';
 let editingStuds = false;
@@ -234,7 +296,8 @@ worker.onmessage = ({ data }) => {
       if (data.id === revision) setStatus('Export zlyhal', 'error');
     } else {
       const { width, depth } = bounds(request.params.cells);
-      download(data.blob, `brick-${width}x${depth}-${request.params.plates}p.${data.format}`);
+      const { filenameSuffix } = getCategory(request.params.category);
+      download(data.blob, `brick${filenameSuffix}-${width}x${depth}-${request.params.plates}p.${data.format}`);
       if (data.id === revision) setStatus(`Export ${data.format.toUpperCase()} pripravený`, 'ready');
     }
     if (data.id === revision) $('export').disabled = false;
@@ -245,12 +308,13 @@ worker.onmessage = ({ data }) => {
       notice(data.error, true);
       setStatus('Chyba geometrie', 'error');
     } else {
-      viewport?.setModel(data);
+      const { scale } = getCategory(params.category);
+      viewport?.setModel(data, PITCH * scale);
       updateSection();
       const [min, max] = data.limits;
       $('size').textContent = max.map((value, i) => number.format(value - min[i])).join(' × ') + ' mm';
       const { width, depth } = bounds(params.cells);
-      $('module-size').textContent = `${width} × ${depth} mod. · ${params.plates} × 3,2 mm`;
+      $('module-size').textContent = `${width} × ${depth} mod. · ${params.plates} × ${number.format(PLATE_HEIGHT * scale)} mm`;
       if (viewport) notice('');
       setStatus('Geometria pripravená', 'ready');
       $('export').disabled = false;
@@ -287,6 +351,19 @@ function menu(button, list) {
       hideMenu(button, list);
       $(button).focus();
     }
+  });
+  $(list).addEventListener('keydown', event => {
+    const items = [...$(list).querySelectorAll('button')];
+    const index = items.indexOf(event.target);
+    const next = {
+      ArrowDown: (index + 1) % items.length,
+      ArrowUp: (index - 1 + items.length) % items.length,
+      Home: 0,
+      End: items.length - 1,
+    }[event.key];
+    if (next === undefined) return;
+    event.preventDefault();
+    items[next].focus();
   });
 }
 
@@ -497,28 +574,56 @@ $('custom-tools').addEventListener('click', event => {
 });
 
 function updateOptions() {
-  const available = params.plates >= 3 && params.slope === 'flat';
+  const hasExtraConnections = getCategory(params.category).defaultPassage !== null;
+  const available = allowsExtraConnections(params);
+  $('extra-connections').hidden = !hasExtraConnections;
   $('technic').disabled = !available;
   $('snot').disabled = !available;
   $('technic-axis').hidden = params.technic === 'none' || !available;
   $('snot-side').hidden = params.snot === 'none' || !available;
   $('bridging').disabled = params.slope !== 'flat';
-  let note = '';
-  if (!available) note = 'Technic a SNOT vyžadujú rovnú hornú plochu a výšku aspoň 3 platničky.';
-  if (params.slope !== 'flat' && params.top !== 'tile') note += ' Study na zlome šikminy sa vynechajú.';
-  if (available && params.technic !== 'none' && !technicRuns(params.cells, params.axis).runs.length) {
-    note = 'Pôdorys nemá v tomto smere protiľahlé úseky stien dlhé aspoň dva moduly.';
+  const notes = [];
+  if (hasExtraConnections && !available) notes.push('Priechodné a bočné spoje vyžadujú rovnú hornú plochu a aspoň 3 platničky.');
+  if (params.slope !== 'flat' && params.top !== 'tile') notes.push('Study na zlome šikminy sa vynechajú.');
+  if (available && params.technic !== 'none') {
+    const { axis, runs } = technicRuns(params.cells, params.axis);
+    notes.push(runs.length
+      ? `Priechodné otvory · ${runs.length} · os ${axis.toUpperCase()}`
+      : 'Pôdorys potrebuje v smere otvorov protiľahlé úseky stien široké aspoň dva moduly.');
   }
-  $('connection-note').hidden = !note;
-  $('connection-note').textContent = note;
+  $('connection-note').hidden = !notes.length;
+  $('connection-note').textContent = notes.join(' ');
 }
+
+function updateBodyHeight() {
+  const height = params.plates * PLATE_HEIGHT * getCategory(params.category).scale;
+  $('body-height').textContent = `${number.format(height)} mm`;
+}
+
+function renderCategory() {
+  const category = getCategory(params.category);
+  $('stage-category').textContent = category.title;
+  $('category-description').textContent = category.description;
+  $('category-pitch').textContent = `Rozstup ${PITCH * category.scale} mm.`;
+  $('technic').value = params.technic;
+  updateBodyHeight();
+  updateOptions();
+}
+
+$('category-options').addEventListener('change', event => {
+  categoryPassages[params.category] = params.technic;
+  params.category = event.target.value;
+  params.technic = categoryPassages[params.category];
+  renderCategory();
+  schedule();
+});
 
 function setPlates(value) {
   params.plates = value;
   $('plate-number').value = value;
   $('plate-range').value = value;
   updateRangeFill($('plate-range'));
-  $('body-height').textContent = `${number.format(value * 3.2)} mm`;
+  updateBodyHeight();
   $('plate-minus').disabled = value === 1;
   $('plate-plus').disabled = value === 24;
   updateOptions();
@@ -557,5 +662,5 @@ for (const input of document.querySelectorAll('input[type="range"]')) {
 }
 
 renderGrid();
-updateOptions();
+renderCategory();
 schedule(0);

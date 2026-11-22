@@ -17,12 +17,43 @@ test('production UI builds, edits and downloads a brick', { timeout: 90_000 }, a
   page.on('pageerror', error => errors.push(error.message));
   const ready = () => page.waitForFunction(() => document.querySelector('#status')?.classList.contains('ready'));
   const cell = (x, y) => page.locator(`[data-x="${x}"][data-y="${y}"]`);
+  const classic = page.getByRole('radio', { name: 'Klasická' });
+  const technical = page.getByRole('radio', { name: 'Technická' });
+  const children = page.getByRole('radio', { name: 'Detská' });
 
   await page.goto(`http://127.0.0.1:${server.httpServer.address().port}`);
   await ready();
   assert.equal(await page.locator('#size').textContent(), '31,8 × 15,8 × 11,4 mm');
   assert.equal(await page.locator('#canvas-host canvas').count(), 1);
   assert.equal(await page.locator('#stage-message').isHidden(), true);
+
+  assert.ok(await classic.isChecked());
+  await classic.press('ArrowRight');
+  assert.ok(await technical.isChecked());
+  const connectionPanel = page.locator('#connections summary');
+  await connectionPanel.click();
+  const passage = page.getByLabel('Priechodný spoj');
+  assert.equal(await passage.inputValue(), 'pin');
+  assert.equal(await page.locator('#connection-note').textContent(), 'Priechodné otvory · 3 · os Y');
+  await passage.selectOption('axle');
+  await children.check();
+  await ready();
+  assert.equal(await page.locator('#category-pitch').textContent(), 'Rozstup 16 mm.');
+  assert.equal(await page.locator('#size').textContent(), '63,6 × 31,6 × 22,8 mm');
+  assert.equal(await page.locator('#body-height').textContent(), '19,2 mm');
+  assert.ok(await passage.isHidden());
+  await page.getByRole('button', { name: 'Exportovať' }).click();
+  const downloadingLargePart = page.waitForEvent('download');
+  await page.locator('[data-format="3mf"]').click();
+  assert.equal((await downloadingLargePart).suggestedFilename(), 'brick-detska-4x2-3p.3mf');
+  await classic.check();
+  assert.equal(await passage.inputValue(), 'none');
+  await technical.check();
+  assert.equal(await passage.inputValue(), 'axle');
+  await classic.check();
+  await connectionPanel.click();
+  await ready();
+  assert.equal(await page.locator('#size').textContent(), '31,8 × 15,8 × 11,4 mm');
 
   await page.getByRole('button', { name: 'Rez dielcom' }).click();
   await page.locator('#cut-axis').selectOption('z');
