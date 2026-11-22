@@ -5,17 +5,17 @@ import './style.css';
 import './material-dark.css';
 import commandDivider from './assets/fluent/command-divider.svg?no-inline';
 import { icons } from './icons.js';
-import { bounds, GRID, key, PITCH, rectangle, technicRuns } from './footprint.js';
-import { allowsExtraConnections, categories, defaults, getCategory, PLATE_HEIGHT } from './settings.js';
+import { bounds, GRID, key, rectangle, technicRuns } from './footprint.js';
+import { allowsExtraConnections, beamGeometry, categories, defaults, getCategory, isBeam } from './settings.js';
 import { createViewport } from './viewport.js';
 
 const panels = {
-  footprint: { icon: 'grid', title: 'Pôdorys' },
-  height: { icon: 'layers', title: 'Výška dielca' },
-  connections: { icon: 'link', title: 'Prepojenia' },
-  print: { icon: 'printer', title: 'Príprava na tlač' },
+  footprint: 'Pôdorys',
+  height: 'Výška dielca',
+  connections: 'Prepojenia',
+  print: 'Príprava na tlač',
 };
-const section = ({ icon, title }) => `<summary class="panel-title"><h3>${icons[icon]}<span>${title}</span></h3>${icons.chevron}</summary>`;
+const brickTops = [['solid', 'Plné study'], ['hollow', 'Duté study'], ['tile', 'Hladký diel (tile)']];
 const iconButton = (id, icon, label) => `<button type="button" id="${id}" class="icon-button" title="${label}" aria-label="${label}">${icons[icon]}</button>`;
 const toggle = (name, label, pressed = false) => `<button type="button" data-value="${name}" aria-pressed="${pressed}">${label}</button>`;
 const option = (value, text) => `<option value="${value}">${text}</option>`;
@@ -83,17 +83,11 @@ document.querySelector('#app').innerHTML = `
       </div>
     </section>
 
-    <nav class="navigation" aria-label="Nastavenia dielca">
-      <button type="button" id="navigation-toggle" class="icon-button navigation-toggle" aria-label="Kompaktná navigácia" aria-pressed="false" title="Kompaktná navigácia">${icons.navigation}</button>
-      <ul class="nav-list" id="settings-navigation">
-        ${Object.entries(panels).map(([id, { icon, title }]) => `
-          <li><a class="nav-item" href="#${id}" title="${title}"${id === 'footprint' ? ' aria-current="location"' : ''}>${icons[icon]}<span>${title}</span></a></li>
-        `).join('')}
-      </ul>
-    </nav>
-
     <aside class="sidebar" aria-labelledby="config-title">
-      <div class="sidebar-header"><h2 id="config-title">Konfigurátor</h2></div>
+      <div class="sidebar-header">
+        <h2 id="config-title">Konfigurátor</h2>
+        ${field('config-section', 'Sekcia', Object.entries(panels))}
+      </div>
       <fieldset class="category-field" aria-describedby="category-note">
         <legend>Typ dielca</legend>
         <div id="category-options" class="category-options">
@@ -105,10 +99,13 @@ document.querySelector('#app').innerHTML = `
           `).join('')}
         </div>
         <p id="category-note" class="field-note"><strong id="category-pitch"></strong> <span id="category-description"></span></p>
+        <div class="category-shape" id="technical-shape-field" hidden>
+          ${field('technical-shape', 'Tvar dielca', [['beam', 'Zaoblený nosník'], ['brick', 'Kocka s otvormi']])}
+        </div>
       </fieldset>
-      <details class="panel" id="footprint" open>
-        ${section(panels.footprint)}
-        <div class="panel-content">
+      <section class="panel" id="footprint" aria-label="${panels.footprint}">
+        <div id="beam-footprint" hidden>${dimension('beam-length', 'Dĺžka nosníka', 5)}</div>
+        <div id="brick-footprint">
         <div class="segments full" id="shape-mode" role="group" aria-label="Režim pôdorysu">
           ${toggle('rectangle', 'Obdĺžnik', true)}${toggle('custom', 'Vlastný tvar')}
         </div>
@@ -124,89 +121,74 @@ document.querySelector('#app').innerHTML = `
         </div>
         <button type="button" id="edit-studs" class="text-button" aria-pressed="false">${icons.grid} <span>Upraviť jednotlivé study</span></button>
         </div>
-      </details>
-      <details class="panel" id="height" open>
-        ${section(panels.height)}
-        <div class="panel-content">
+      </section>
+      <section class="panel" id="height" aria-label="${panels.height}" hidden>
+        <p class="field-note" id="beam-height" hidden>Hrúbka zaobleného nosníka je ${beamGeometry.thickness} mm.</p>
+        <div id="brick-height">
         <div class="height-row">
           <div class="stepper">${iconButton('plate-minus', 'minus', 'Ubrať platničku')}<output id="plate-number" for="plate-range">3</output>${iconButton('plate-plus', 'plus', 'Pridať platničku')}</div>
           <span>platničky</span><strong id="body-height">9,6 mm</strong>
         </div>
         <input type="range" id="plate-range" min="1" max="24" value="3" aria-label="Počet platničiek">
         </div>
-      </details>
-      <details class="panel" id="connections">
-        ${section(panels.connections)}
-        <div class="panel-content">
+      </section>
+      <section class="panel" id="connections" aria-label="${panels.connections}" hidden>
         <div class="fields">
-          ${field('top', 'Horný povrch', [['solid', 'Plné study'], ['hollow', 'Duté study'], ['tile', 'Hladký diel (tile)']])}
-          ${field('slope', 'Šikmina', [['flat', 'Bez sklonu'], ['33', '33°'], ['45', '45°'], ['reverse', 'Obrátená 45°']])}
+          <div class="fields" id="brick-topology">
+            ${field('top', 'Horný povrch', brickTops)}
+            ${field('slope', 'Šikmina', [['flat', 'Bez sklonu'], ['33', '33°'], ['45', '45°'], ['reverse', 'Obrátená 45°']])}
+          </div>
           <div id="extra-connections" class="fields">
             ${field('technic', 'Priechodný spoj', [['none', 'Bez otvorov'], ['pin', 'Okrúhly otvor pre kolík'], ['axle', 'Krížový otvor pre osku']])}
             <div id="technic-axis" hidden>${field('axis', 'Smer otvorov', [['auto', 'Automaticky'], ['y', 'Pozdĺž osi Y'], ['x', 'Pozdĺž osi X']])}</div>
-            ${field('snot', 'Bočné spoje', [['none', 'Bez bočných spojov'], ['stud', 'Bočné study'], ['recess', 'Bočné priehlbiny']])}
-            <div id="snot-side" hidden>${field('side', 'Strana', [['south', 'Predná (−Y)'], ['north', 'Zadná (+Y)'], ['east', 'Pravá (+X)'], ['west', 'Ľavá (−X)']])}</div>
+            <div id="side-connections" class="fields">
+              ${field('snot', 'Bočné spoje', [['none', 'Bez bočných spojov'], ['stud', 'Bočné study'], ['recess', 'Bočné priehlbiny']])}
+              <div id="snot-side" hidden>${field('side', 'Strana', [['south', 'Predná (−Y)'], ['north', 'Zadná (+Y)'], ['east', 'Pravá (+X)'], ['west', 'Ľavá (−X)']])}</div>
+            </div>
           </div>
           <p class="field-note" id="connection-note" hidden></p>
+          <details class="beam-alignment" id="beam-alignment" hidden>
+            <summary>Zarovnanie pri 90°</summary>
+            <p class="field-note">Pri zvislom uložení nosníka najprv zarovnaj os prvého otvoru. Výšky v tabuľke sa počítajú od tejto osi.</p>
+            <table aria-label="Zarovnanie otvorov s platničkami">
+              <thead><tr><th scope="col">Otvor</th><th scope="col">Platničky</th><th scope="col">Výška</th></tr></thead>
+              <tbody id="beam-alignment-rows"></tbody>
+            </table>
+          </details>
         </div>
-        </div>
-      </details>
-      <details class="panel" id="print">
-        ${section(panels.print)}
-        <div class="panel-content">
+      </section>
+      <section class="panel" id="print" aria-label="${panels.print}" hidden>
         <div class="segments full" id="print-mode" role="group" aria-label="Kompenzácia tlače">
           ${toggle('reference', 'Referenčné', true)}${toggle('fdm', 'Pre 3D tlač')}
         </div>
         <div id="fdm-fields" class="fields" hidden>
           ${field('nozzle', 'Priemer trysky', [[0.4, '0,4 mm'], [0.2, '0,2 mm'], [0.6, '0,6 mm']])}
-          <label class="switch"><input type="checkbox" role="switch" id="bridging"><span class="switch-track" aria-hidden="true"></span>Kónický nábeh k rúrkam</label>
+          <label class="switch" id="bridge-field"><input type="checkbox" role="switch" id="bridging"><span class="switch-track" aria-hidden="true"></span>Kónický nábeh k rúrkam</label>
         </div>
         <div class="range-header"><label for="clutch">Sila zovretia</label><output id="clutch-value" for="clutch">0,00 mm</output></div>
         <input type="range" id="clutch" min="-0.15" max="0.15" step="0.01" value="0">
         <div class="range-labels"><span>Voľnejšie</span><span>Pevnejšie</span></div>
-        </div>
-      </details>
+      </section>
     </aside>
   </main>
 `;
 
 const $ = id => document.getElementById(id);
-const workspace = document.querySelector('.workspace');
-const navItems = [...$('settings-navigation').querySelectorAll('.nav-item')];
-
-function selectSection(id) {
-  for (const item of navItems) {
-    if (item.hash === `#${id}`) item.setAttribute('aria-current', 'location');
-    else item.removeAttribute('aria-current');
-  }
-}
-
-$('navigation-toggle').addEventListener('click', event => {
-  const compact = workspace.classList.toggle('compact-navigation');
-  event.currentTarget.setAttribute('aria-pressed', String(compact));
-});
-
-$('settings-navigation').addEventListener('click', event => {
-  const item = event.target.closest('.nav-item');
-  if (!item || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-  event.preventDefault();
-  const panel = $(item.hash.slice(1));
-  panel.open = true;
-  const summary = panel.querySelector('summary');
-  summary.scrollIntoView({ block: 'start' });
-  summary.focus({ preventScroll: true });
-});
-
-document.querySelector('.sidebar').addEventListener('focusin', event => {
-  const panel = event.target.closest('.panel');
-  if (panel) selectSection(panel.id);
+const sectionSelect = $('config-section');
+sectionSelect.addEventListener('change', () => {
+  for (const id of Object.keys(panels)) $(id).hidden = id !== sectionSelect.value;
 });
 
 const number = new Intl.NumberFormat('sk-SK', { maximumFractionDigits: 2 });
 const twoDecimals = new Intl.NumberFormat('sk-SK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const params = structuredClone(defaults);
 params.cells = centeredRectangle(4, 2);
+params.technicalShape = 'beam';
+params.beamLength = 5;
 const categoryPassages = Object.fromEntries(Object.entries(categories).map(([id, category]) => [id, category.defaultPassage ?? 'none']));
+categoryPassages.beam = 'pin';
+const categoryTops = Object.fromEntries(Object.entries(categories).map(([id, category]) => [id, category.defaultTop]));
+const passageKey = () => isBeam(params) ? 'beam' : params.category;
 let quality = 'detail';
 let shapeMode = 'rectangle';
 let editingStuds = false;
@@ -262,7 +244,7 @@ function schedule(delay = 110) {
   clearTimeout(timer);
   $('export').disabled = true;
   hideMenu('export', 'formats');
-  if (!params.cells.length) {
+  if (!isBeam(params) && !params.cells.length) {
     viewport?.clear();
     $('size').textContent = '—';
     $('module-size').textContent = 'Prázdny pôdorys';
@@ -287,6 +269,13 @@ function download(blob, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
+function filename(params, format) {
+  if (isBeam(params)) return `brick-technicka-nosnik-${params.beamLength}m.${format}`;
+  const { width, depth } = bounds(params.cells);
+  const { filenameSuffix } = getCategory(params.category);
+  return `brick${filenameSuffix}-${width}x${depth}-${params.plates}p.${format}`;
+}
+
 worker.onmessage = ({ data }) => {
   const request = active;
   active = null;
@@ -295,9 +284,7 @@ worker.onmessage = ({ data }) => {
       notice(`Export zlyhal. ${data.error}`, true);
       if (data.id === revision) setStatus('Export zlyhal', 'error');
     } else {
-      const { width, depth } = bounds(request.params.cells);
-      const { filenameSuffix } = getCategory(request.params.category);
-      download(data.blob, `brick${filenameSuffix}-${width}x${depth}-${request.params.plates}p.${data.format}`);
+      download(data.blob, filename(request.params, data.format));
       if (data.id === revision) setStatus(`Export ${data.format.toUpperCase()} pripravený`, 'ready');
     }
     if (data.id === revision) $('export').disabled = false;
@@ -308,13 +295,17 @@ worker.onmessage = ({ data }) => {
       notice(data.error, true);
       setStatus('Chyba geometrie', 'error');
     } else {
-      const { scale } = getCategory(params.category);
-      viewport?.setModel(data, PITCH * scale);
+      const { pitch, plateHeight } = getCategory(params.category).geometry;
+      viewport?.setModel(data, pitch);
       updateSection();
       const [min, max] = data.limits;
       $('size').textContent = max.map((value, i) => number.format(value - min[i])).join(' × ') + ' mm';
-      const { width, depth } = bounds(params.cells);
-      $('module-size').textContent = `${width} × ${depth} mod. · ${params.plates} × ${number.format(PLATE_HEIGHT * scale)} mm`;
+      if (isBeam(params)) {
+        $('module-size').textContent = `${params.beamLength} mod. · zaoblený nosník`;
+      } else {
+        const { width, depth } = bounds(params.cells);
+        $('module-size').textContent = `${width} × ${depth} mod. · ${params.plates} × ${number.format(plateHeight)} mm`;
+      }
       if (viewport) notice('');
       setStatus('Geometria pripravená', 'ready');
       $('export').disabled = false;
@@ -372,7 +363,7 @@ menu('angle', 'angle-menu');
 
 $('formats').addEventListener('click', event => {
   const button = event.target.closest('[data-format]');
-  if (!button || active || !params.cells.length) return;
+  if (!button || active || (!isBeam(params) && !params.cells.length)) return;
   const { format } = button.dataset;
   hideMenu('export', 'formats');
   $('export').disabled = true;
@@ -574,18 +565,38 @@ $('custom-tools').addEventListener('click', event => {
 });
 
 function updateOptions() {
-  const hasExtraConnections = getCategory(params.category).defaultPassage !== null;
+  const beam = isBeam(params);
+  const beamHasHoles = beam && params.technic !== 'none';
+  const hasExtraConnections = !beam && getCategory(params.category).defaultPassage !== null;
   const available = allowsExtraConnections(params);
-  $('extra-connections').hidden = !hasExtraConnections;
-  $('technic').disabled = !available;
+  $('extra-connections').hidden = !hasExtraConnections && !beam;
+  $('side-connections').hidden = beam;
+  $('technic').disabled = !available && !beam;
   $('snot').disabled = !available;
   $('technic-axis').hidden = params.technic === 'none' || !available;
   $('snot-side').hidden = params.snot === 'none' || !available;
   $('bridging').disabled = params.slope !== 'flat';
+  $('beam-alignment').hidden = !beamHasHoles;
   const notes = [];
   if (hasExtraConnections && !available) notes.push('Priechodné a bočné spoje vyžadujú rovnú hornú plochu a aspoň 3 platničky.');
-  if (params.slope !== 'flat' && params.top !== 'tile') notes.push('Study na zlome šikminy sa vynechajú.');
-  if (available && params.technic !== 'none') {
+  if (!beam && params.slope !== 'flat' && params.top !== 'tile') notes.push('Study na zlome šikminy sa vynechajú.');
+  if (params.top === 'hollow-classic') {
+    const diameter = getCategory(params.category).geometry.classicSocketDiameter;
+    notes.push(`Horný otvor Ø ${number.format(diameter)} mm prijíma spodnú rúrku. Spodné vybrania sú určené pre study klasického dielca.`);
+  }
+  if (beamHasHoles) {
+    notes.push(`Priechodné otvory · ${params.beamLength} · os Z`);
+    const { plateHeight } = getCategory('classic').geometry;
+    const rows = [];
+    for (let index = 0; index < params.beamLength; index++) {
+      const height = index * beamGeometry.pitch;
+      const plates = Math.round(height / plateHeight);
+      if (Math.abs(plates * plateHeight - height) < 1e-9) {
+        rows.push(`<tr><th scope="row">${index + 1}</th><td>${plates}</td><td>${number.format(height)} mm</td></tr>`);
+      }
+    }
+    $('beam-alignment-rows').innerHTML = rows.join('');
+  } else if (available && params.technic !== 'none') {
     const { axis, runs } = technicRuns(params.cells, params.axis);
     notes.push(runs.length
       ? `Priechodné otvory · ${runs.length} · os ${axis.toUpperCase()}`
@@ -596,25 +607,51 @@ function updateOptions() {
 }
 
 function updateBodyHeight() {
-  const height = params.plates * PLATE_HEIGHT * getCategory(params.category).scale;
+  const height = params.plates * getCategory(params.category).geometry.plateHeight;
   $('body-height').textContent = `${number.format(height)} mm`;
 }
 
 function renderCategory() {
   const category = getCategory(params.category);
+  const beam = isBeam(params);
+  params.technic = categoryPassages[passageKey()];
+  params.top = categoryTops[params.category];
   $('stage-category').textContent = category.title;
   $('category-description').textContent = category.description;
-  $('category-pitch').textContent = `Rozstup ${PITCH * category.scale} mm.`;
+  $('category-pitch').textContent = `Rozstup ${category.geometry.pitch} mm.`;
+  $('technical-shape-field').hidden = params.category !== 'technical';
+  $('beam-footprint').hidden = !beam;
+  $('brick-footprint').hidden = beam;
+  $('beam-height').hidden = !beam;
+  $('brick-height').hidden = beam;
+  $('brick-topology').hidden = beam;
+  $('bridge-field').hidden = beam;
   $('technic').value = params.technic;
+  const tops = category.geometry.classicSocketDiameter ? [...brickTops, ['hollow-classic', 'Spojenie s klasickými dielcami']] : brickTops;
+  $('top').innerHTML = tops.map(([value, title]) => option(value, title)).join('');
+  $('top').value = params.top;
+  renderGrid();
   updateBodyHeight();
   updateOptions();
 }
 
 $('category-options').addEventListener('change', event => {
-  categoryPassages[params.category] = params.technic;
   params.category = event.target.value;
-  params.technic = categoryPassages[params.category];
   renderCategory();
+  schedule();
+});
+
+$('technical-shape').addEventListener('change', event => {
+  params.technicalShape = event.target.value;
+  renderCategory();
+  schedule();
+});
+
+$('beam-length').addEventListener('change', event => {
+  const input = event.target;
+  params.beamLength = Math.min(GRID, Math.max(1, Math.round(input.valueAsNumber) || 1));
+  input.value = params.beamLength;
+  updateOptions();
   schedule();
 });
 
@@ -637,6 +674,8 @@ $('plate-range').addEventListener('input', event => setPlates(Number(event.targe
 for (const id of ['top', 'slope', 'technic', 'axis', 'snot', 'side', 'nozzle']) {
   $(id).addEventListener('change', event => {
     params[id] = id === 'nozzle' ? Number(event.target.value) : event.target.value;
+    if (id === 'technic') categoryPassages[passageKey()] = params.technic;
+    if (id === 'top') categoryTops[params.category] = params.top;
     renderGrid();
     updateOptions();
     schedule();
@@ -661,6 +700,5 @@ for (const input of document.querySelectorAll('input[type="range"]')) {
   input.addEventListener('input', () => updateRangeFill(input));
 }
 
-renderGrid();
 renderCategory();
 schedule(0);

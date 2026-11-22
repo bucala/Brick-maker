@@ -20,6 +20,11 @@ test('production UI builds, edits and downloads a brick', { timeout: 90_000 }, a
   const classic = page.getByRole('radio', { name: 'Klasická' });
   const technical = page.getByRole('radio', { name: 'Technická' });
   const children = page.getByRole('radio', { name: 'Detská' });
+  const section = page.getByRole('combobox', { name: 'Sekcia' });
+  const showSection = async id => {
+    await section.selectOption(id);
+    assert.deepEqual(await page.locator('.sidebar .panel:visible').evaluateAll(panels => panels.map(panel => panel.id)), [id]);
+  };
 
   await page.goto(`http://127.0.0.1:${server.httpServer.address().port}`);
   await ready();
@@ -30,28 +35,55 @@ test('production UI builds, edits and downloads a brick', { timeout: 90_000 }, a
   assert.ok(await classic.isChecked());
   await classic.press('ArrowRight');
   assert.ok(await technical.isChecked());
-  const connectionPanel = page.locator('#connections summary');
-  await connectionPanel.click();
+  await ready();
+  assert.equal(await page.locator('#size').textContent(), '39,4 × 7,4 × 8 mm');
+  assert.ok(await page.getByLabel('Dĺžka nosníka').isVisible());
+  await showSection('connections');
   const passage = page.getByLabel('Priechodný spoj');
   assert.equal(await passage.inputValue(), 'pin');
+  assert.equal(await page.locator('#connection-note').textContent(), 'Priechodné otvory · 5 · os Z');
+  const alignment = page.locator('#beam-alignment');
+  const alignmentRows = () => alignment.locator('tbody tr').evaluateAll(rows => rows.map(row =>
+    Array.from(row.cells, cell => cell.textContent),
+  ));
+  await alignment.locator('summary').press('Enter');
+  assert.ok(await alignment.getByRole('table').isVisible());
+  assert.deepEqual(await alignmentRows(), [['1', '0', '0 mm'], ['3', '5', '16 mm'], ['5', '10', '32 mm']]);
+  await showSection('footprint');
+  const beamLength = page.getByLabel('Dĺžka nosníka');
+  await beamLength.fill('9');
+  await beamLength.press('Tab');
+  await showSection('connections');
+  assert.deepEqual((await alignmentRows()).slice(-2), [['7', '15', '48 mm'], ['9', '20', '64 mm']]);
+  await passage.selectOption('none');
+  assert.ok(await alignment.isHidden());
+  await passage.selectOption('pin');
+  await page.getByLabel('Tvar dielca').selectOption('brick');
+  assert.ok(await alignment.isHidden());
   assert.equal(await page.locator('#connection-note').textContent(), 'Priechodné otvory · 3 · os Y');
   await passage.selectOption('axle');
   await children.check();
   await ready();
   assert.equal(await page.locator('#category-pitch').textContent(), 'Rozstup 16 mm.');
-  assert.equal(await page.locator('#size').textContent(), '63,6 × 31,6 × 22,8 mm');
-  assert.equal(await page.locator('#body-height').textContent(), '19,2 mm');
+  assert.equal(await page.locator('#size').textContent(), '63,68 × 31,68 × 23,6 mm');
+  assert.equal(await page.getByLabel('Horný povrch').inputValue(), 'hollow');
   assert.ok(await passage.isHidden());
+  await page.getByLabel('Horný povrch').selectOption('hollow-classic');
+  assert.match(await page.locator('#connection-note').textContent(), /6,6 mm/);
+  await showSection('height');
+  assert.equal(await page.locator('#body-height').textContent(), '19,2 mm');
+  await ready();
   await page.getByRole('button', { name: 'Exportovať' }).click();
   const downloadingLargePart = page.waitForEvent('download');
   await page.locator('[data-format="3mf"]').click();
   assert.equal((await downloadingLargePart).suggestedFilename(), 'brick-detska-4x2-3p.3mf');
   await classic.check();
+  await showSection('connections');
   assert.equal(await passage.inputValue(), 'none');
   await technical.check();
   assert.equal(await passage.inputValue(), 'axle');
   await classic.check();
-  await connectionPanel.click();
+  await showSection('footprint');
   await ready();
   assert.equal(await page.locator('#size').textContent(), '31,8 × 15,8 × 11,4 mm');
 
@@ -77,10 +109,11 @@ test('production UI builds, edits and downloads a brick', { timeout: 90_000 }, a
   await cell(13, 2).press('Space');
   assert.equal(await cell(13, 2).getAttribute('aria-pressed'), 'false');
   await page.getByRole('button', { name: 'Dokončiť úpravu studov' }).click();
+  await showSection('height');
   await page.getByRole('button', { name: 'Pridať platničku' }).click();
-  await page.locator('summary').filter({ hasText: 'Prepojenia' }).click();
+  await showSection('connections');
   await page.locator('#top').selectOption('hollow');
-  await page.locator('summary').filter({ hasText: 'Príprava na tlač' }).click();
+  await showSection('print');
   await page.getByRole('button', { name: 'Pre 3D tlač' }).click();
   await page.locator('#nozzle').selectOption('0.6');
   const bridging = page.getByRole('switch', { name: 'Kónický nábeh k rúrkam' });

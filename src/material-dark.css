@@ -54,8 +54,7 @@
     text-transform: uppercase;
     box-shadow: 0 2px 4px var(--shadow);
   }
-  .nav-item[aria-current] { background: var(--selected); color: var(--accent); }
-  .panel[open] > .panel-title h3 svg, .field:focus-within > span { color: var(--accent); }
+  .field:focus-within > span { color: var(--accent); }
 }
 
 @media (prefers-color-scheme: dark) and (forced-colors: none) {

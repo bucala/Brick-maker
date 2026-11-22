@@ -55,11 +55,11 @@ export function outline(cells) {
   return loops;
 }
 
-export function inset(loop, amount, width, depth) {
+export function inset(loop, amount, width, depth, pitch = PITCH) {
   return loop.turns.map(({ point: [x, y], from, to }) => {
     const [ax, ay] = directions[from];
     const [bx, by] = directions[to];
-    return [PITCH * (x - width / 2) - amount * (ay + by), PITCH * (y - depth / 2) + amount * (ax + bx)];
+    return [pitch * (x - width / 2) - amount * (ay + by), pitch * (y - depth / 2) + amount * (ax + bx)];
   });
 }
 
